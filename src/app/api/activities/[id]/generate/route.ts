@@ -3,6 +3,7 @@ import { anthropic } from "@/lib/anthropic";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession, getOwnedActivity } from "@/lib/api-helpers";
 import { CONTENT_PROMPTS } from "@/lib/prompts";
+import { shouldUseMockAI, generateMockContent } from "@/lib/mock-ai";
 
 export async function POST(
   req: NextRequest,
@@ -14,14 +15,6 @@ export async function POST(
   const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
   if (error) return error;
 
-  const promptFn = CONTENT_PROMPTS[activity!.type];
-  if (!promptFn) {
-    return NextResponse.json(
-      { error: "Content generation not available for this activity type" },
-      { status: 400 }
-    );
-  }
-
   let additionalContext = "";
   try {
     const body = await req.json();
@@ -31,29 +24,43 @@ export async function POST(
   }
 
   try {
-    let prompt = promptFn({
-      type: activity!.type,
-      title: activity!.title,
-      description: activity!.description,
-    });
+    let content: string;
 
-    if (additionalContext) {
-      prompt += `\n\nAdditional context from the user: ${additionalContext}`;
+    if (shouldUseMockAI()) {
+      content = generateMockContent(activity!.type, activity!.title, activity!.description);
+    } else {
+      const promptFn = CONTENT_PROMPTS[activity!.type];
+      if (!promptFn) {
+        return NextResponse.json(
+          { error: "Content generation not available for this activity type" },
+          { status: 400 }
+        );
+      }
+
+      let prompt = promptFn({
+        type: activity!.type,
+        title: activity!.title,
+        description: activity!.description,
+      });
+
+      if (additionalContext) {
+        prompt += `\n\nAdditional context from the user: ${additionalContext}`;
+      }
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 2048,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      content = message.content
+        .filter((block) => block.type === "text")
+        .map((block) => {
+          if (block.type === "text") return block.text;
+          return "";
+        })
+        .join("");
     }
-
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const content = message.content
-      .filter((block) => block.type === "text")
-      .map((block) => {
-        if (block.type === "text") return block.text;
-        return "";
-      })
-      .join("");
 
     // Store generated content
     await prisma.activity.update({

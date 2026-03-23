@@ -1,28 +1,63 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          scope:
-            "openid email profile https://www.googleapis.com/auth/calendar.events",
-          access_type: "offline",
-          prompt: "consent", // Forces refresh_token on every sign-in
-        },
+const providers: NextAuthOptions["providers"] = [
+  GoogleProvider({
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    authorization: {
+      params: {
+        scope:
+          "openid email profile https://www.googleapis.com/auth/calendar.events",
+        access_type: "offline",
+        prompt: "consent",
       },
-    }),
-  ],
+    },
+  }),
+];
+
+// Dev-only credentials provider for testing without Google OAuth
+if (process.env.NODE_ENV !== "production") {
+  providers.push(
+    CredentialsProvider({
+      id: "dev-login",
+      name: "Dev Login",
+      credentials: {
+        email: { label: "Email", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email) return null;
+        // Find or create dev user
+        const user = await prisma.user.upsert({
+          where: { googleId: "dev-test-user" },
+          update: {},
+          create: {
+            email: credentials.email,
+            name: "Test User",
+            googleId: "dev-test-user",
+            image: null,
+            googleTokens: undefined,
+          },
+        });
+        return { id: user.googleId, email: user.email, name: user.name };
+      },
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
   },
   callbacks: {
-    async signIn({ account, profile }) {
+    async signIn({ account, profile, credentials }) {
+      // Dev credentials login — user already created by authorize()
+      if (account?.provider === "dev-login") return true;
+
       if (!account || !profile?.email) return false;
 
       // Upsert user on every sign-in
@@ -61,12 +96,18 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, profile, user }) {
       // On initial sign-in, set sub to Google provider ID so session callback
       // can look up user by googleId
       if (account) {
-        token.sub = account.providerAccountId;
-        token.email = profile?.email ?? "";
+        if (account.provider === "dev-login") {
+          // For dev credentials, the authorize() returns { id: googleId }
+          token.sub = user?.id ?? "dev-test-user";
+          token.email = user?.email ?? "testuser@chapter-agent.dev";
+        } else {
+          token.sub = account.providerAccountId;
+          token.email = profile?.email ?? "";
+        }
       }
       return token;
     },

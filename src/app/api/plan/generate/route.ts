@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/api-helpers";
 import { PLAN_GENERATION_PROMPT } from "@/lib/prompts";
 import { extractJSON, validateActivities } from "@/lib/parsers";
-import { PlanInput } from "@/types/plan";
+import { PlanInput, GeneratedActivity } from "@/types/plan";
+import { shouldUseMockAI, generateMockPlan } from "@/lib/mock-ai";
 
 export async function POST(req: NextRequest) {
   const { session, error } = await getAuthSession();
@@ -26,54 +27,59 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const prompt = PLAN_GENERATION_PROMPT(body);
+    let activities: GeneratedActivity[];
 
-    let activities;
-    let retries = 0;
+    if (shouldUseMockAI()) {
+      // Use mock data for testing without a valid API key
+      activities = generateMockPlan(body);
+    } else {
+      // Real Anthropic API call
+      const prompt = PLAN_GENERATION_PROMPT(body);
+      let retries = 0;
+      let parsed: GeneratedActivity[] | undefined;
 
-    while (retries < 2) {
-      const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: retries === 0
-              ? prompt
-              : prompt + "\n\nIMPORTANT: Return ONLY valid JSON array. No markdown, no explanation.",
-          },
-        ],
-      });
+      while (retries < 2) {
+        const message = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          messages: [
+            {
+              role: "user",
+              content: retries === 0
+                ? prompt
+                : prompt + "\n\nIMPORTANT: Return ONLY valid JSON array. No markdown, no explanation.",
+            },
+          ],
+        });
 
-      const text = message.content
-        .filter((block) => block.type === "text")
-        .map((block) => {
-          if (block.type === "text") return block.text;
-          return "";
-        })
-        .join("");
+        const text = message.content
+          .filter((block) => block.type === "text")
+          .map((block) => {
+            if (block.type === "text") return block.text;
+            return "";
+          })
+          .join("");
 
-      try {
-        const parsed = extractJSON(text);
-        activities = validateActivities(parsed);
-        break;
-      } catch (parseError) {
-        retries++;
-        if (retries >= 2) {
-          console.error("Failed to parse AI response after retries:", parseError);
-          return NextResponse.json(
-            { error: "Failed to generate plan. Please try again." },
-            { status: 500 }
-          );
+        try {
+          const raw = extractJSON(text);
+          parsed = validateActivities(raw);
+          break;
+        } catch (parseError) {
+          retries++;
+          if (retries >= 2) {
+            console.error("Failed to parse AI response after retries:", parseError);
+            return NextResponse.json(
+              { error: "Failed to generate plan. Please try again." },
+              { status: 500 }
+            );
+          }
         }
       }
-    }
 
-    if (!activities) {
-      return NextResponse.json(
-        { error: "Failed to generate plan" },
-        { status: 500 }
-      );
+      if (!parsed) {
+        return NextResponse.json({ error: "Failed to generate plan" }, { status: 500 });
+      }
+      activities = parsed;
     }
 
     // Bulk insert activities
