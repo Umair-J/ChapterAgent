@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to");
 
   const where: Prisma.ActivityWhereInput = {
-    userId: session!.user.id,
+    userId: session.user.id,
   };
 
   if (status) {

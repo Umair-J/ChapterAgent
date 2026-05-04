@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     // Bulk insert activities
     const created = await prisma.activity.createMany({
       data: activities.map((a) => ({
-        userId: session!.user.id,
+        userId: session.user.id,
         type: a.type,
         title: a.title,
         description: a.description,
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch back the created activities to return them
     const result = await prisma.activity.findMany({
-      where: { userId: session!.user.id },
+      where: { userId: session.user.id },
       orderBy: { scheduledDate: "asc" },
     });
 
