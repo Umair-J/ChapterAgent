@@ -12,7 +12,7 @@ export async function POST(
   const { session, error: authError } = await getAuthSession();
   if (authError) return authError;
 
-  const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
+  const { activity, error } = await getOwnedActivity(params.id, session.user.id);
   if (error) return error;
 
   let additionalContext = "";
@@ -27,9 +27,9 @@ export async function POST(
     let content: string;
 
     if (shouldUseMockAI()) {
-      content = generateMockContent(activity!.type, activity!.title, activity!.description);
+      content = generateMockContent(activity.type, activity.title, activity.description);
     } else {
-      const promptFn = CONTENT_PROMPTS[activity!.type];
+      const promptFn = CONTENT_PROMPTS[activity.type];
       if (!promptFn) {
         return NextResponse.json(
           { error: "Content generation not available for this activity type" },
@@ -38,9 +38,9 @@ export async function POST(
       }
 
       let prompt = promptFn({
-        type: activity!.type,
-        title: activity!.title,
-        description: activity!.description,
+        type: activity.type,
+        title: activity.title,
+        description: activity.description,
       });
 
       if (additionalContext) {
@@ -64,7 +64,7 @@ export async function POST(
 
     // Store generated content
     await prisma.activity.update({
-      where: { id: activity!.id },
+      where: { id: activity.id },
       data: { generatedContent: content },
     });
 

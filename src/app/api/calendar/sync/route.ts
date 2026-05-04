@@ -18,30 +18,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "activityId is required" }, { status: 400 });
   }
 
-  const { activity, error } = await getOwnedActivity(body.activityId, session!.user.id);
+  const { activity, error } = await getOwnedActivity(body.activityId, session.user.id);
   if (error) return error;
 
   try {
-    const calendar = await getCalendarClient(session!.user.id);
+    const calendar = await getCalendarClient(session.user.id);
 
     const eventBody = {
-      summary: activity!.title,
-      description: activity!.description || undefined,
+      summary: activity.title,
+      description: activity.description || undefined,
       start: {
-        date: new Date(activity!.scheduledDate).toISOString().split("T")[0],
+        date: new Date(activity.scheduledDate).toISOString().split("T")[0],
       },
       end: {
-        date: new Date(activity!.scheduledDate).toISOString().split("T")[0],
+        date: new Date(activity.scheduledDate).toISOString().split("T")[0],
       },
     };
 
     let calendarEventId: string;
 
-    if (activity!.calendarEventId) {
+    if (activity.calendarEventId) {
       // Update existing event
       const res = await calendar.events.update({
         calendarId: "primary",
-        eventId: activity!.calendarEventId,
+        eventId: activity.calendarEventId,
         requestBody: eventBody,
       });
       calendarEventId = res.data.id!;
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     await prisma.activity.update({
-      where: { id: activity!.id },
+      where: { id: activity.id },
       data: { calendarEventId },
     });
 

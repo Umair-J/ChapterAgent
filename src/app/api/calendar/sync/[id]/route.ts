@@ -10,10 +10,10 @@ export async function DELETE(
   const { session, error: authError } = await getAuthSession();
   if (authError) return authError;
 
-  const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
+  const { activity, error } = await getOwnedActivity(params.id, session.user.id);
   if (error) return error;
 
-  if (!activity!.calendarEventId) {
+  if (!activity.calendarEventId) {
     return NextResponse.json(
       { error: "Activity is not synced to calendar" },
       { status: 400 }
@@ -21,15 +21,15 @@ export async function DELETE(
   }
 
   try {
-    const calendar = await getCalendarClient(session!.user.id);
+    const calendar = await getCalendarClient(session.user.id);
 
     await calendar.events.delete({
       calendarId: "primary",
-      eventId: activity!.calendarEventId,
+      eventId: activity.calendarEventId,
     });
 
     await prisma.activity.update({
-      where: { id: activity!.id },
+      where: { id: activity.id },
       data: { calendarEventId: null },
     });
 
@@ -40,7 +40,7 @@ export async function DELETE(
     // If event already deleted from Google, just clear our reference
     if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 404) {
       await prisma.activity.update({
-        where: { id: activity!.id },
+        where: { id: activity.id },
         data: { calendarEventId: null },
       });
       return NextResponse.json({ success: true });

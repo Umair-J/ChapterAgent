@@ -9,7 +9,7 @@ export async function GET(
   const { session, error: authError } = await getAuthSession();
   if (authError) return authError;
 
-  const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
+  const { activity, error } = await getOwnedActivity(params.id, session.user.id);
   if (error) return error;
 
   return NextResponse.json(activity);
@@ -22,7 +22,7 @@ export async function PATCH(
   const { session, error: authError } = await getAuthSession();
   if (authError) return authError;
 
-  const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
+  const { activity, error } = await getOwnedActivity(params.id, session.user.id);
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -51,7 +51,7 @@ export async function PATCH(
   }
 
   const updated = await prisma.activity.update({
-    where: { id: activity!.id },
+    where: { id: activity.id },
     data,
   });
 
@@ -65,10 +65,10 @@ export async function DELETE(
   const { session, error: authError } = await getAuthSession();
   if (authError) return authError;
 
-  const { activity, error } = await getOwnedActivity(params.id, session!.user.id);
+  const { activity, error } = await getOwnedActivity(params.id, session.user.id);
   if (error) return error;
 
-  await prisma.activity.delete({ where: { id: activity!.id } });
+  await prisma.activity.delete({ where: { id: activity.id } });
 
   return NextResponse.json({ success: true });
 }
