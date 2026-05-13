@@ -13,10 +13,10 @@ export async function getCalendarClient(userId: string) {
     select: { googleTokens: true },
   });
 
-  const tokens = user.googleTokens as unknown as GoogleTokens;
-  if (!tokens?.access_token) {
+  if (!user.googleTokens) {
     throw new Error("No Google tokens found. Please re-authenticate.");
   }
+  const tokens: GoogleTokens = JSON.parse(user.googleTokens);
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -42,8 +42,7 @@ export async function getCalendarClient(userId: string) {
     };
     await prisma.user.update({
       where: { id: userId },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: { googleTokens: updatedTokens as any },
+      data: { googleTokens: JSON.stringify(updatedTokens) },
     });
   });
 
