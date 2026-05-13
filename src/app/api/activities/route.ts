@@ -17,12 +17,9 @@ export async function GET(req: NextRequest) {
     userId: session.user.id,
   };
 
-  if (status) {
-    where.status = status as Prisma.EnumActivityStatusFilter;
-  }
-  if (type) {
-    where.type = type as Prisma.EnumActivityTypeFilter;
-  }
+  if (status) where.status = status;
+  if (type) where.type = type;
+
   if (from || to) {
     where.scheduledDate = {};
     if (from) (where.scheduledDate as Prisma.DateTimeFilter).gte = new Date(from);

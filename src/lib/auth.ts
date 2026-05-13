@@ -67,7 +67,7 @@ export const authOptions: NextAuthOptions = {
           name: profile.name,
           image: (profile as { picture?: string }).picture,
           email: profile.email,
-          googleTokens: {
+          googleTokens: JSON.stringify({
             access_token: account.access_token,
             expiry_date: account.expires_at
               ? account.expires_at * 1000
@@ -76,20 +76,20 @@ export const authOptions: NextAuthOptions = {
             ...(account.refresh_token && {
               refresh_token: account.refresh_token,
             }),
-          },
+          }),
         },
         create: {
           email: profile.email,
           name: profile.name,
           image: (profile as { picture?: string }).picture,
           googleId: account.providerAccountId,
-          googleTokens: {
+          googleTokens: JSON.stringify({
             access_token: account.access_token,
             refresh_token: account.refresh_token,
             expiry_date: account.expires_at
               ? account.expires_at * 1000
               : undefined,
-          },
+          }),
         },
       });
 
