@@ -17,9 +17,9 @@ node_modules
 # debug
 npm-debug.log*
 
-# local env files
+# local env files (secrets — never commit these)
 .env*.local
-.env
+.env.production
 
 # vercel
 .vercel
